@@ -2,16 +2,16 @@
 
 Athena AI is an Autonomous Decision Intelligence Platform. This repository is a production-oriented monorepo scaffold for the backend, frontend, documentation, infrastructure, and developer automation.
 
-Business logic has intentionally not been implemented yet.
-
 ## What Was Added
 
 - Monorepo structure with `backend/`, `frontend/`, `docs/`, `infra/`, and `scripts/`.
-- FastAPI backend scaffold with typed settings and health/readiness endpoints.
+- FastAPI backend with typed settings, async SQLAlchemy 2.0, Alembic migrations, and repository layer.
+- PostgreSQL decision-intelligence schema: users, events, investigations, predictions, recommendations, decisions, and reports.
+- **Enterprise-grade JWT authentication and RBAC** — register, login, refresh, logout, `/me`, role guards, refresh-token rotation, token revocation, and audit logging.
 - Next.js + TypeScript + Tailwind CSS frontend scaffold.
 - PostgreSQL and Redis local dependency stack through Docker Compose.
-- Root `.env.example`, `.gitignore`, `AGENTS.md`, `docs/ARCHITECTURE.md`, and `docs/ROADMAP.md`.
-- Initial backend test covering the health endpoint.
+- Root `.env.example`, `.gitignore`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/AUTH_FLOW.md`, `docs/DATABASE_ARCHITECTURE.md`, `docs/ER_DIAGRAM.md`, `docs/ROADMAP.md`, and `docs/SECURITY.md`.
+- Backend tests for health endpoints, database health, migrations, constraints, relationships, and full auth flow.
 
 ## How To Run It
 
@@ -19,6 +19,12 @@ Copy the example environment file:
 
 ```bash
 cp .env.example .env
+```
+
+Set a secure JWT secret in `.env`:
+
+```dotenv
+JWT_SECRET_KEY=<random 32+ character string>
 ```
 
 Start local infrastructure:
@@ -34,6 +40,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -57,69 +64,88 @@ Default local URLs:
 - Backend API: `http://localhost:8000`
 - API docs: `http://localhost:8000/docs`
 
-## API Endpoints / Commands Added
+## API Endpoints
 
-Backend endpoints:
+### Health
 
-- `GET /healthz`: process health check.
-- `GET /readyz`: dependency readiness placeholder. It currently returns `ok` until database and Redis clients are wired.
+- `GET /healthz` — process health check.
+- `GET /readyz` — dependency readiness placeholder.
+- `GET /health/db` — PostgreSQL connectivity check with round-trip latency.
 
-Root commands:
+### Auth (`/api/auth`)
 
-- `docker compose up -d`: starts PostgreSQL and Redis.
-- `docker compose down`: stops PostgreSQL and Redis.
+- `POST /api/auth/register` — create an account, returns token pair + user.
+- `POST /api/auth/login` — authenticate, returns token pair + user.
+- `POST /api/auth/refresh` — rotate refresh token, returns new token pair + user.
+- `POST /api/auth/logout` — revoke refresh token (requires Bearer access token).
+- `GET  /api/auth/me` — return current user profile (requires Bearer access token).
 
-Backend commands:
+All token responses use the Lovable.dev-compatible envelope:
 
-- `uvicorn app.main:app --reload`: starts the FastAPI development server.
-- `pytest`: runs backend tests.
-- `ruff check .`: runs backend linting.
-- `mypy app`: runs backend type checking.
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_type": "bearer",
+  "user": { "id": "...", "name": "...", "email": "...", "role": "...", "is_active": true, "created_at": "..." }
+}
+```
 
-Frontend commands:
+## Commands
 
-- `npm run dev`: starts the Next.js development server.
-- `npm run build`: builds the frontend.
-- `npm run lint`: runs Next.js linting.
-- `npm run typecheck`: runs TypeScript type checking.
+Backend:
 
-## Environment Variables Needed
+- `alembic upgrade head` — applies database migrations.
+- `alembic revision --autogenerate -m "description"` — creates a new migration.
+- `uvicorn app.main:app --reload` — starts the FastAPI development server.
+- `pytest` — runs all backend tests (requires PostgreSQL via Docker Compose).
+- `ruff check .` — runs backend linting.
+- `mypy app` — runs backend type checking.
 
-See `.env.example` for the full list.
+Frontend:
 
-Required for local infrastructure:
+- `npm run dev` — starts the Next.js development server.
+- `npm run build` — builds the frontend.
+- `npm run lint` — runs Next.js linting.
+- `npm run typecheck` — runs TypeScript type checking.
 
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `POSTGRES_DB`
-- `POSTGRES_HOST`
-- `POSTGRES_PORT`
-- `DATABASE_URL`
-- `REDIS_HOST`
-- `REDIS_PORT`
-- `REDIS_URL`
+## Environment Variables
 
-Required for application runtime:
+See `.env.example` for the full list. Auth-specific variables:
 
-- `ATHENA_ENV`
-- `ATHENA_LOG_LEVEL`
-- `BACKEND_HOST`
-- `BACKEND_PORT`
-- `BACKEND_CORS_ORIGINS`
-- `NEXT_PUBLIC_API_BASE_URL`
+| Variable | Default | Description |
+|---|---|---|
+| `JWT_SECRET_KEY` | *(must be set)* | HS256 signing secret, min 32 chars |
+| `JWT_ALGORITHM` | `HS256` | JWT signing algorithm |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access token lifetime |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
 
-Reserved for future LangGraph and model-provider integration:
+## Database
 
-- `LANGGRAPH_CHECKPOINT_URI`
-- `OPENAI_API_KEY`
+PostgreSQL schema and migration details:
+
+- `docs/DATABASE_ARCHITECTURE.md` — stack, entities, repositories, and API integration guidance.
+- `docs/ER_DIAGRAM.md` — entity-relationship diagram and index summary.
+- `docs/AUTH_FLOW.md` — authentication and token lifecycle diagrams.
+- `docs/SECURITY.md` — security architecture, threat model, and hardening notes.
+
+Core tables: `users`, `events`, `investigations`, `predictions`, `recommendations`, `decisions`, `reports`, `refresh_tokens`, `audit_logs`.
 
 ## Testing Status
 
-- Backend: a minimal `pytest` health-check test has been added but not executed in this scaffold step.
+- Backend: `pytest` covers `/healthz`, `/health/db`, Alembic migrations, FK/unique constraints, ORM relationships, soft-delete filtering, and the full auth flow (register, login, refresh rotation, revocation, logout, RBAC, expired/invalid/tampered tokens).
 - Frontend: no tests have been added yet.
-- Integration tests: not added yet because database, Redis, and LangGraph business workflows are not implemented.
+- LangGraph workflow integration tests: not added yet.
+
+## Roles
+
+| Role | Description |
+|---|---|
+| `ADMIN` | Full platform access |
+| `MANAGER` | Manage workflows and users |
+| `ANALYST` | Create and review investigations |
+| `VIEWER` | Read-only access |
 
 ## Next Recommended Step
 
-Define the first decision workflow contract: inputs, outputs, audit trail requirements, persistence model, and LangGraph state shape. After that, add database migrations and a thin API route backed by tests.
-
+Define the first decision workflow contract and expose thin REST endpoints that return flat, JSON-serializable DTOs for the Lovable.dev frontend. Protect those routes with `Depends(require_min_role(UserRole.ANALYST))` from `app.api.deps`. Wire LangGraph nodes to the existing repositories for investigation → prediction → recommendation → decision → report persistence.
