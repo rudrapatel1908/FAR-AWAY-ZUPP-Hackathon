@@ -25,46 +25,163 @@ This repository is a production-oriented monorepo containing the backend, fronte
 - Root `.env.example`, `.gitignore`, `AGENTS.md`, and full `docs/` suite.
 - Backend tests for health endpoints, database health, migrations, constraints, relationships, full auth flow, event CRUD, frontend integration contracts, and agent workflow.
 
-## How To Run It
+## Getting Started From Scratch
 
-Copy the example environment file:
+Follow these steps in order on a fresh machine to get the full project running.
+
+### 1. Prerequisites
+
+Make sure you have installed:
+
+- [Git](https://git-scm.com/downloads)
+- [Python 3.11+](https://www.python.org/downloads/)
+- [Node.js 18+](https://nodejs.org/) and npm
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for PostgreSQL + Redis)
+
+### 2. Clone the repository
+
+```bash
+git clone https://github.com/Shyam-2315/FAR-AWAY-ZUPP-Hackathon.git
+cd FAR-AWAY-ZUPP-Hackathon/athena-ai
+```
+
+### 3. Set up environment variables
+
+Copy the example environment file to create your root `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Set a secure JWT secret in `.env`:
+Open `.env` and set a secure JWT secret (32+ random characters):
 
 ```dotenv
 JWT_SECRET_KEY=<random 32+ character string>
 ```
 
-To enable real AI-generated agent output (recommended), set your Anthropic API key in `backend/.env`:
-
-```dotenv
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-If this is left empty, all six agents fall back to deterministic mock output — the pipeline still runs end-to-end and the UI still works, just with templated text.
-
-Start local infrastructure:
+Now copy the same example file into the backend folder — the backend reads `backend/.env` specifically:
 
 ```bash
+cd backend
+cp ../.env.example .env
+cd ..
+```
+
+Open `backend/.env` and set your Anthropic API key to enable real AI-generated agent output:
+
+```dotenv
+ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
+```
+
+If left empty, all six agents fall back to deterministic mock output — the pipeline still runs end-to-end, just with templated text instead of real Claude responses.
+
+### 4. Start Docker (PostgreSQL + Redis)
+
+```bash
+cd backend
 docker compose up -d
 docker compose ps
 ```
 
-Run the backend:
+Confirm both containers show `Up` / `healthy` before continuing.
+
+### 5. Set up the backend
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate        # Linux/macOS
-.\.venv\Scripts\Activate.ps1    # Windows PowerShell
+```
+
+Activate the virtual environment:
+
+```bash
+# Linux/macOS
+source .venv/bin/activate
+
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+```
+
+Install dependencies:
+
+```bash
 pip install -e ".[dev]"
+```
+
+Run database migrations:
+
+```bash
 alembic upgrade head
+```
+
+Start the backend server:
+
+```bash
 uvicorn app.main:app --reload
 ```
+
+You should see `Uvicorn running on http://127.0.0.1:8000`. Leave this terminal running.
+
+### 6. Set up the frontend
+
+Open a **new terminal** and run:
+
+```bash
+cd frontend/athena-ai-dashboard-main
+npm install
+```
+
+Create the frontend's local environment file:
+
+```bash
+echo "VITE_API_BASE_URL=http://localhost:8000" > .env.local
+```
+
+Start the frontend dev server:
+
+```bash
+npm run dev
+```
+
+### 7. Open the app
+
+Visit the frontend URL printed in the terminal (typically `http://localhost:8080` or `http://localhost:5173`). Register a new account from the UI — in development mode (`ATHENA_ENV=development`, the default), your account is automatically elevated to `ADMIN` so every feature is immediately available.
+
+### Daily startup (after first-time setup is complete)
+
+Every day after the first-time setup above, you only need:
+
+**Terminal 1 — Backend:**
+
+```bash
+cd backend
+docker compose up -d
+.venv\Scripts\activate        # or: source .venv/bin/activate on Linux/macOS
+uvicorn app.main:app --reload
+```
+
+**Terminal 2 — Frontend:**
+
+```bash
+cd frontend/athena-ai-dashboard-main
+npm run dev
+```
+
+**Shutdown at end of day:**
+
+```bash
+# Ctrl+C in both terminals first
+cd backend
+docker compose down
+```
+
+## Quick Reference
+
+Default local URLs:
+
+- Frontend (Lovable Vite): `http://localhost:8080` (or `5173`, depending on config)
+- Backend API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
 
 If port `8000` is already held by a stale process on Windows PowerShell:
 
@@ -74,53 +191,7 @@ Get-NetTCPConnection -LocalPort 8000 -State Listen |
   ForEach-Object { Stop-Process -Id $_ -Force }
 ```
 
-Start the correct backend from `backend/`:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Run the frontend:
-
-```bash
-cd frontend/athena-ai-dashboard-main
-npm install
-npm run dev
-```
-
-Default local URLs:
-
-- Frontend (Lovable Vite): `http://localhost:8080` (or `5173`, depending on config)
-- Backend API: `http://localhost:8000`
-- Swagger UI: `http://localhost:8000/docs`
-
-### Daily startup (after first-time setup)
-
-Terminal 1 — Backend:
-
-```bash
-cd backend
-docker compose up -d
-.venv\Scripts\activate
-uvicorn app.main:app --reload
-```
-
-Terminal 2 — Frontend:
-
-```bash
-cd frontend/athena-ai-dashboard-main
-npm run dev
-```
-
-### Shutdown
-
-```bash
-# Ctrl+C in both terminals first
-cd backend
-docker compose down
-```
+For the full first-time setup, see "Getting Started From Scratch" above.
 
 ## Lovable.dev Frontend Integration
 
