@@ -20,7 +20,7 @@ export function Topbar() {
   const { data: alertsData } = useQuery({
     queryKey: ["notifications", "unresolved"],
     queryFn: () =>
-      api.events.list({
+      api.listEvents({
         status: ["NEW", "IN_PROGRESS"],
         severity: ["HIGH", "CRITICAL"],
         page: 1,
