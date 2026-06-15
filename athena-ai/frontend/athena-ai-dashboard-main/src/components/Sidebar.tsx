@@ -1,20 +1,22 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Activity, FileText, Bot, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-
+import { useAuth } from "@/lib/auth-context";
 const items = [
-  { to: "/app/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/app/events", icon: Activity, label: "Events" },
-  { to: "/app/agents", icon: Bot, label: "AI Agents" },
-  { to: "/app/reports", icon: FileText, label: "Reports" },
-  { to: "/app/settings", icon: Settings, label: "Settings" },
+  { to: "/app/dashboard", icon: LayoutDashboard, label: "Dashboard", adminOnly: false },
+  { to: "/app/events", icon: Activity, label: "Events", adminOnly: false },
+  { to: "/app/agents", icon: Bot, label: "AI Agents", adminOnly: false },
+  { to: "/app/reports", icon: FileText, label: "Reports", adminOnly: true },
+  { to: "/app/settings", icon: Settings, label: "Settings", adminOnly: false },
 ] as const;
 
 export function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useAuth();
+  const isViewer = user?.role === "VIEWER";
+  const visibleItems = items.filter((item) => !item.adminOnly || !isViewer);
 
-  return (
-    <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
+  return (    <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
       <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-5">
         <div
           className="flex h-8 w-8 items-center justify-center rounded-lg"
@@ -30,7 +32,7 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="flex-1 space-y-1 p-3">
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const active = pathname === item.to || pathname.startsWith(item.to + "/");
           return (
             <Link

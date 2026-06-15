@@ -19,16 +19,18 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { WorkflowStreamPanel } from "@/components/WorkflowStreamPanel";
 import type { AgentWorkflowResponse, Event, Severity, Status } from "@/lib/types";
-import { Plus, Search, ChevronLeft, ChevronRight, Brain } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, Brain, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/app/events")({
   component: EventsPage,
 });
 
 function EventsPage() {
-  const qc = useQueryClient();
-  const [page, setPage] = useState(1);
+  const { user } = useAuth();
+  const isViewer = user?.role === "VIEWER";
+  const qc = useQueryClient();  const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [q, setQ] = useState("");
   const [severity, setSeverity] = useState<string>("all");
@@ -76,8 +78,11 @@ function EventsPage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["events", queryParams],
     queryFn: () => api.listEvents(queryParams),
+    // Poll every 15s so VIEWER accounts see status changes (e.g. an ADMIN
+    // running "Run AI Core" and the event flipping NEW -> RESOLVED) without
+    // needing to manually refresh the page.
+    refetchInterval: 15_000,
   });
-
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
 
   const delMut = useMutation({
@@ -127,9 +132,11 @@ function EventsPage() {
             All operational signals captured by Athena.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Create Event
-        </Button>
+        {!isViewer && (
+          <Button onClick={() => setCreateOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> Create Event
+          </Button>
+        )}
       </header>
 
       {/* ── Filter bar ──────────────────────────────────────────────────── */}
@@ -223,31 +230,39 @@ function EventsPage() {
             <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Run AI Core
             </p>
-            <div className="flex flex-wrap gap-2">
-              {(data?.items ?? []).map((event) => {
-                const isThisRunning = activeStream?.eventId === event.id;
-                const isOtherRunning = activeStream !== null && activeStream.eventId !== event.id;
-                return (
-                  <Button
-                    key={event.id}
-                    size="sm"
-                    variant={isThisRunning ? "default" : "outline"}
-                    className="gap-2"
-                    disabled={isOtherRunning}
-                    onClick={() => handleRunWorkflow(event)}
-                    title={`Run AI Core on: ${event.title}`}
-                  >
-                    <Brain
-                      className={`h-3.5 w-3.5 ${isThisRunning ? "animate-pulse text-violet-300" : ""}`}
-                    />
-                    {isThisRunning ? "Running…" : "Run AI Core"}
-                    <span className="max-w-[140px] truncate text-xs opacity-60">
-                      {event.title}
-                    </span>
-                  </Button>
-                );
-              })}
-            </div>
+            {isViewer ? (
+              <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
+                <Eye className="h-3.5 w-3.5" />
+                Read-Only Mode — workflow execution requires an ADMIN account.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {(data?.items ?? []).map((event) => {
+                  const isThisRunning = activeStream?.eventId === event.id;
+                  const isOtherRunning =
+                    activeStream !== null && activeStream.eventId !== event.id;
+                  return (
+                    <Button
+                      key={event.id}
+                      size="sm"
+                      variant={isThisRunning ? "default" : "outline"}
+                      className="gap-2"
+                      disabled={isOtherRunning}
+                      onClick={() => handleRunWorkflow(event)}
+                      title={`Run AI Core on: ${event.title}`}
+                    >
+                      <Brain
+                        className={`h-3.5 w-3.5 ${isThisRunning ? "animate-pulse text-violet-300" : ""}`}
+                      />
+                      {isThisRunning ? "Running…" : "Run AI Core"}
+                      <span className="max-w-[140px] truncate text-xs opacity-60">
+                        {event.title}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </>
       )}

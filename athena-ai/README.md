@@ -6,6 +6,7 @@ This repository is a production-oriented monorepo containing the backend, fronte
 
 ## What's Included
 
+
 - Monorepo structure with `backend/`, `frontend/`, `docs/`, `infra/`, and `scripts/`.
 - FastAPI backend with typed settings, async SQLAlchemy 2.0, Alembic migrations, and repository layer.
 - PostgreSQL decision-intelligence schema: users, events, event activities, workflow runs, reports, refresh tokens, audit logs.
